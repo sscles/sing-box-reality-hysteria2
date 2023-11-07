@@ -696,6 +696,17 @@ modify_singbox() {
     systemctl restart sing-box
 }
 
+# 创建快捷方式
+create_shortcut() {
+  cat > /root/sbox/mianyang.sh << EOF
+#!/usr/bin/env bash
+bash <(curl -fsSL https://github.com/vveg26/sing-box-reality-hysteria2/raw/main/beta.sh) \$1
+EOF
+  chmod +x /root/sbox/mianyang.sh
+  ln -sf /root/sbox/mianyang.sh /usr/bin/mianyang
+
+}
+
 uninstall_singbox() {
     # Stop and disable services
     systemctl stop sing-box argo
@@ -708,6 +719,8 @@ uninstall_singbox() {
     # Remove configuration and executable files
     rm -f /root/sbox/sbconfig_server.json
     rm -f /root/sbox/sing-box
+    rm -f /usr/bin/mianyang
+    rm -f /root/sbox/mianyang.sh
     rm -f /root/sbox/cloudflared-linux
     rm -f /root/sbox/self-cert/private.key
     rm -f /root/sbox/self-cert/cert.pem
@@ -723,7 +736,7 @@ uninstall_singbox() {
 install_base
 
 # Check if reality.json, sing-box, and sing-box.service already exist
-if [ -f "/root/sbox/sbconfig_server.json" ] && [ -f "/root/sbox/config" ] && [ -f "/root/sbox/cloudflared-linux" ] && [ -f "/root/sbox/sing-box" ] && [ -f "/etc/systemd/system/sing-box.service" ]; then
+if [ -f "/root/sbox/sbconfig_server.json" ] && [ -f "/root/sbox/config" ] && [ -f "/root/sbox/mianyang.sh" ] && [ -f "/usr/bin/mianyang" ] && [ -f "/root/sbox/cloudflared-linux" ] && [ -f "/root/sbox/sing-box" ] && [ -f "/etc/systemd/system/sing-box.service" ]; then
 
     echo "sing-box-reality-hysteria2已经安装"
     echo ""
@@ -732,11 +745,11 @@ if [ -f "/root/sbox/sbconfig_server.json" ] && [ -f "/root/sbox/config" ] && [ -
     echo "1. 重新安装"
     echo "2. 修改配置"
     echo "3. 显示客户端配置"
-    echo "4. 卸载"
-    echo "5. 更新sing-box内核"
-    echo "6. 手动重启cloudflared"
-    echo "7. 一键开启bbr"
-    echo "8. 重启sing-box"
+    echo "4. 更新sing-box内核"
+    echo "5. 重启argo隧道"
+    echo "6. 重启sing-box"
+    echo "7. 开启bbr"
+    echo "8. 卸载"
     echo ""
     read -p "Enter your choice (1-8): " choice
 
@@ -758,11 +771,16 @@ if [ -f "/root/sbox/sbconfig_server.json" ] && [ -f "/root/sbox/config" ] && [ -
           show_client_configuration
           exit 0
       ;;	
-      4)
+      4)  
+          # show client configuration
+          update_script
+          exit 0
+      ;;	
+      8)
           uninstall_singbox
           exit 0
           ;;
-      5)
+      4)
           show_notice "更新 Sing-box..."
           download_singbox
           # Check configuration and start the service
@@ -773,7 +791,7 @@ if [ -f "/root/sbox/sbconfig_server.json" ] && [ -f "/root/sbox/config" ] && [ -
           echo ""  
           exit 0
           ;;
-      6)
+      5)
           systemctl stop argo
           systemctl start argo
           echo "重新启动完成，查看新的客户端信息"
@@ -784,10 +802,10 @@ if [ -f "/root/sbox/sbconfig_server.json" ] && [ -f "/root/sbox/config" ] && [ -
           enable_bbr
           exit 0
           ;;
-      8)
+      6)
           systemctl restart sing-box
           echo "重启完成"
-	  exit 0
+	        exit 0
           ;;
       *)
           echo "Invalid choice. Exiting."
@@ -1061,7 +1079,7 @@ if /root/sbox/sing-box check -c /root/sbox/sbconfig_server.json; then
     systemctl enable sing-box > /dev/null 2>&1
     systemctl start sing-box
     systemctl restart sing-box
-
+    create_shortcut
     show_client_configuration
 
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Function to print characters with delay
+# 延迟打字
 print_with_delay() {
     text="$1"
     delay="$2"
@@ -10,53 +10,70 @@ print_with_delay() {
     done
     echo
 }
-#notice
+
+# 自定义字体彩色，read 函数
+red() { echo -e "\033[31m\033[01m$*\033[0m"; }  # 红色
+green() { echo -e "\033[32m\033[01m$*\033[0m"; }   # 绿色
+yellow() { echo -e "\033[33m\033[01m$*\033[0m"; }   # 黄色
+
+#信息提示
 show_notice() {
     local message="$1"
 
-    echo "#######################################################################################################################"
-    echo "                                                                                                                       "
-    echo "                                ${message}                                                                             "
-    echo "                                                                                                                       "
-    echo "#######################################################################################################################"
+    local green_bg="\e[48;5;34m"
+    local white_fg="\e[97m"
+    local reset="\e[0m"
+
+    echo -e "${green_bg}${white_fg}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${reset}"
+    echo -e "${white_fg}┃${reset}                                                                                             "
+    echo -e "${white_fg}┃${reset}                                   ${message}                                                "
+    echo -e "${white_fg}┃${reset}                                                                                             "
+    echo -e "${green_bg}${white_fg}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${reset}"
 }
-# Introduction animation
-print_with_delay "sing-reality-hy2-box by 绵阿羊" 0.05
+
+# 作者介绍
+print_with_delay "Reality Hysteria2 二合一脚本 by 绵阿羊" 0.03
 echo ""
 echo ""
-# install base
+
+# 安装依赖
 install_base(){
-  # Check if jq is installed, and install it if not
-  if ! command -v jq &> /dev/null; then
-      echo "jq is not installed. Installing..."
+  # 安装qrencode
+  local packages=("qrencode")
+  for package in "${packages[@]}"; do
+    if ! command -v "$package" &> /dev/null; then
+      echo "正在安装 $package..."
       if [ -n "$(command -v apt)" ]; then
-          apt update > /dev/null 2>&1
-          apt install -y jq > /dev/null 2>&1
+        sudo apt update > /dev/null 2>&1
+        sudo apt install -y "$package" > /dev/null 2>&1
       elif [ -n "$(command -v yum)" ]; then
-          yum install -y epel-release
-          yum install -y jq
+        sudo yum install -y "$package"
       elif [ -n "$(command -v dnf)" ]; then
-          dnf install -y jq
+        sudo dnf install -y "$package"
       else
-          echo "Cannot install jq. Please install jq manually and rerun the script."
-          exit 1
+        echo "无法安装 $package。请手动安装，并重新运行脚本。"
+        exit 1
       fi
-  fi
+      echo "$package 已安装。"
+    else
+      echo "$package 已经安装。"
+    fi
+  done
 }
+# 创建快捷方式
+create_shortcut() {
+  cat > /root/sbox/mianyang.sh << EOF
+#!/usr/bin/env bash
+bash <(curl -fsSL https://github.com/vveg26/sing-box-reality-hysteria2/raw/main/install.sh) \$1
+EOF
+  chmod +x /root/sbox/mianyang.sh
+  ln -sf /root/sbox/mianyang.sh /usr/bin/mianyang
 
-download_sing_box(){
-  # Fetch the latest (including pre-releases) release version number from GitHub API
-  # 正式版
-  #latest_version_tag=$(curl -s "https://api.github.com/repos/SagerNet/sing-box/releases" | grep -Po '"tag_name": "\K.*?(?=")' | head -n 1)
-  #beta版本
-  latest_version_tag=$(curl -s "https://api.github.com/repos/SagerNet/sing-box/releases" | grep -Po '"tag_name": "\K.*?(?=")' | sort -V | tail -n 1)
-  latest_version=${latest_version_tag#v}  # Remove 'v' prefix from version number
-  echo "Latest version: $latest_version"
-
-  # Detect server architecture
+}
+# 下载cloudflared和sb
+download_singbox(){
   arch=$(uname -m)
   echo "Architecture: $arch"
-
   # Map architecture names
   case ${arch} in
       x86_64)
@@ -69,98 +86,143 @@ download_sing_box(){
           arch="armv7"
           ;;
   esac
-
+  # Fetch the latest (including pre-releases) release version number from GitHub API
+  # 正式版
+  #latest_version_tag=$(curl -s "https://api.github.com/repos/SagerNet/sing-box/releases" | grep -Po '"tag_name": "\K.*?(?=")' | head -n 1)
+  #beta版本
+  latest_version_tag=$(curl -s "https://api.github.com/repos/SagerNet/sing-box/releases" | grep -Po '"tag_name": "\K.*?(?=")' | sort -V | tail -n 1)
+  latest_version=${latest_version_tag#v}  # Remove 'v' prefix from version number
+  echo "Latest version: $latest_version"
+  # Detect server architecture
   # Prepare package names
   package_name="sing-box-${latest_version}-linux-${arch}"
-
   # Prepare download URL
   url="https://github.com/SagerNet/sing-box/releases/download/${latest_version_tag}/${package_name}.tar.gz"
-
   # Download the latest release package (.tar.gz) from GitHub
   curl -sLo "/root/${package_name}.tar.gz" "$url"
 
-
   # Extract the package and move the binary to /root
   tar -xzf "/root/${package_name}.tar.gz" -C /root
-  mv "/root/${package_name}/sing-box" /root/
+  mv "/root/${package_name}/sing-box" /root/sbox
 
   # Cleanup the package
   rm -r "/root/${package_name}.tar.gz" "/root/${package_name}"
 
   # Set the permissions
-  chown root:root /root/sing-box
-  chmod +x /root/sing-box
-  echo ""
+  chown root:root /root/sbox/sing-box
+  chmod +x /root/sbox/sing-box
 }
-
 
 # client configuration
 show_client_configuration() {
-  # Get current listen port
-  current_listen_port=$(jq -r '.inbounds[0].listen_port' /root/sbconfig_server.json)
-  # Get current server name
-  current_server_name=$(jq -r '.inbounds[0].tls.server_name' /root/sbconfig_server.json)
-  # Get the UUID
-  uuid=$(jq -r '.inbounds[0].users[0].uuid' /root/sbconfig_server.json)
-  # Get the public key from the file, decoding it from base64
-  public_key=$(base64 --decode /root/public.key.b64)
-  # Get the short ID
-  short_id=$(jq -r '.inbounds[0].tls.reality.short_id[0]' /root/sbconfig_server.json)
-  # Retrieve the server IP address
-  server_ip=$(curl -s https://api.ipify.org)
+
+  # 获取当前ip
+  server_ip=$(grep -o "SERVER_IP='[^']*'" /root/sbox/config | awk -F"'" '{print $2}')
+  
+  # reality
+  # reality当前端口
+  reality_port=$(grep -o "REALITY_PORT='[^']*'" /root/sbox/config | awk -F"'" '{print $2}')
+  # 当前偷取的网站
+  reality_server_name=$(grep -o "REALITY_SERVER_NAME='[^']*'" /root/sbox/config | awk -F"'" '{print $2}')
+  # 当前reality uuid
+  reality_uuid=$(grep -o "REALITY_UUID='[^']*'" /root/sbox/config | awk -F"'" '{print $2}')
+  # 获取公钥
+  public_key=$(grep -o "PUBLIC_KEY='[^']*'" /root/sbox/config | awk -F"'" '{print $2}')
+  # 获取short_id
+  short_id=$(grep -o "SHORT_ID='[^']*'" /root/sbox/config | awk -F"'" '{print $2}')
+  #聚合reality
+  reality_link="vless://$reality_uuid@$server_ip:$reality_port?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$reality_server_name&fp=chrome&pbk=$public_key&sid=$short_id&type=tcp&headerType=none#SING-BOX-REALITY"
   echo ""
   echo ""
-  show_notice "sing-box 客户端配置文件"
-  # Generate the link
+  show_notice "$(red "Reality 通用链接和二维码和通用参数")" 
   echo ""
   echo ""
-  cat /root/sbconfig_client.json
-  show_notice "Reality 客户端通用链接" 
+  red "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━Reality 通用链接如下━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+  echo "$reality_link"
+  echo ""
+  red "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+  echo "" 
+  red "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━Reality 二维码如下━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+  qrencode -t UTF8 $reality_link
+  echo ""
+  red "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
   echo ""
   echo ""
-  server_link="vless://$uuid@$server_ip:$current_listen_port?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$current_server_name&fp=chrome&pbk=$public_key&sid=$short_id&type=tcp&headerType=none#SING-BOX-TCP"
-  echo ""
-  echo ""
-  echo "$server_link"
-  echo ""
-  echo ""
-  # Print the server details
-  show_notice "Reality 客户端通用参数" 
-  echo ""
+  red "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━Reality 客户端通用参数-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo ""
   echo "服务器ip: $server_ip"
-  echo "监听端口: $current_listen_port"
-  echo "UUID: $uuid"
-  echo "域名SNI: $current_server_name"
+  echo "监听端口: $reality_port"
+  echo "UUID: $reality_uuid"
+  echo "域名SNI: $reality_server_name"
   echo "Public Key: $public_key"
   echo "Short ID: $short_id"
   echo ""
-  echo ""
-  # Get current listen port
-  hy_current_listen_port=$(jq -r '.inbounds[1].listen_port' /root/sbconfig_server.json)
-  # Get current server name
-  hy_current_server_name=$(openssl x509 -in /root/self-cert/cert.pem -noout -subject -nameopt RFC2253 | awk -F'=' '{print $NF}')
-  # Get the password
-  hy_password=$(jq -r '.inbounds[1].users[0].password' /root/sbconfig_server.json)
-  # Generate the link
-  hy_server_link="hy2://$hy_password@$server_ip:$hy_current_listen_port?insecure=1&sni=$hy_current_server_name#SING-BOX-HY2"
-  show_notice "Hysteria2 客户端通用链接" 
+  red "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo ""
   echo ""
-  echo "$hy_server_link"
+
+  # hy port
+  hy_port=$(grep -o "HY_PORT='[^']*'" /root/sbox/config | awk -F"'" '{print $2}')
+  # hy sni
+  hy_server_name=$(grep -o "HY_SERVER_NAME='[^']*'" /root/sbox/config | awk -F"'" '{print $2}')
+  # hy password
+  hy_password=$(grep -o "HY_PASSWORD='[^']*'" /root/sbox/config | awk -F"'" '{print $2}')
+  
+  # Generate the hy link
+  hy2_link="hysteria2://$hy_password@$server_ip:$hy_port?insecure=1&sni=$hy_server_name"
+
   echo ""
-  echo ""   
-  # Print the server details
-  show_notice "Hysteria2 客户端通用参数" 
+  echo "" 
+  show_notice "$(green "Hysteria2 通用链接和二维码和通用参数")"
   echo ""
+  echo "" 
+  green "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━hysteria2 通用链接格式━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+  echo "$hy2_link"
+  echo ""
+  green "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "" 
+  echo ""
+  green "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━hysteria2 二维码━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+  qrencode -t UTF8 $hy2_link  
+  echo ""
+  green "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo ""  
+  echo ""
+  green "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━Hysteria2 客户端通用参数━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" 
+  echo "" 
   echo "服务器ip: $server_ip"
-  echo "端口号: $hy_current_listen_port"
-  echo "password: $hy_password"
-  echo "域名SNI: $hy_current_server_name"
-  echo "跳过证书验证: True"
+  echo "端口号: $hy_port"
+  echo "密码password: $hy_password"
+  echo "域名SNI: $hy_server_name"
+  echo "跳过证书验证（允许不安全）: True"
+  echo ""
+  green "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo ""
   echo ""
+  green "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━Hysteria2 官方内核yaml文件（可搭配v2rayN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" 
+cat << EOF
+
+server: $server_ip:$hy_port
+auth: $hy_password
+tls:
+  sni: $hy_server_name
+  insecure: true
+# 可自己修改对应带宽，不添加则默认为bbr，否则使用hy2的brutal拥塞控制
+# bandwidth:
+#   up: 100 mbps
+#   down: 100 mbps
+fastOpen: true
+socks5:
+  listen: 127.0.0.1:50000
+
+EOF
+
   show_notice "clash-meta配置参数"
 cat << EOF
 
@@ -170,6 +232,7 @@ mode: rule
 log-level: info
 unified-delay: true
 global-client-fingerprint: chrome
+ipv6: true
 dns:
   enable: true
   listen: :53
@@ -195,13 +258,13 @@ proxies:
   - name: Reality
     type: vless
     server: $server_ip
-    port: $current_listen_port
-    uuid: $uuid
+    port: $reality_port
+    uuid: $reality_uuid
     network: tcp
     udp: true
     tls: true
     flow: xtls-rprx-vision
-    servername: $current_server_name
+    servername: $reality_server_name
     client-fingerprint: chrome
     reality-opts:
       public-key: $public_key
@@ -210,14 +273,13 @@ proxies:
   - name: Hysteria2
     type: hysteria2
     server: $server_ip
-    port: $hy_current_listen_port
+    port: $hy_port
     #  up和down均不写或为0则使用BBR流控
     # up: "30 Mbps" # 若不写单位，默认为 Mbps
     # down: "200 Mbps" # 若不写单位，默认为 Mbps
     password: $hy_password
-    sni: $hy_current_server_name
+    sni: $hy_server_name
     skip-cert-verify: true
-    fingerprint: chrome
     alpn:
       - h3
 
@@ -247,289 +309,90 @@ rules:
 
 EOF
 
-}
-
-install_base
-
-# Check if reality.json, sing-box, and sing-box.service already exist
-if [ -f "/root/sbconfig_server.json" ] && [ -f "/root/sing-box" ] && [ -f "/root/public.key.b64" ] && [ -f "/etc/systemd/system/sing-box.service" ]; then
-
-    echo "sing-box-reality-hysteria2已经安装"
-    echo ""
-    echo "请选择选项:"
-    echo ""
-    echo "1. 重新安装"
-    echo "2. 修改配置"
-    echo "3. 显示客户端配置"
-    echo "4. 卸载"
-    echo "5. 更新sing-box内核"
-    echo ""
-    read -p "Enter your choice (1-5): " choice
-
-    case $choice in
-        1)
-          show_notice "Reinstalling..."
-          # Uninstall previous installation
-          systemctl stop sing-box
-          systemctl disable sing-box > /dev/null 2>&1
-          rm /etc/systemd/system/sing-box.service
-          rm /root/sbconfig_server.json
-          rm /root/sing-box
-	
-          # Proceed with installation
-        ;;
-        2)
-          #Reality modify
-          show_notice "开始修改reality端口号和域名"
-          # Get current listen port
-          current_listen_port=$(jq -r '.inbounds[0].listen_port' /root/sbconfig_server.json)
-
-          # Ask for listen port
-          read -p "Enter desired listen port (Current port is $current_listen_port): " listen_port
-          listen_port=${listen_port:-$current_listen_port}
-
-          # Get current server name
-          current_server_name=$(jq -r '.inbounds[0].tls.server_name' /root/sbconfig_server.json)
-
-          # Ask for server name (sni)
-          read -p "Enter server name/SNI (Current value is $current_server_name): " server_name
-          server_name=${server_name:-$current_server_name}
-          echo ""
-          # modifying hysteria2 configuration
-          show_notice "开始修改hysteria2端口号"
-          echo ""
-          # Get current listen port
-          hy_current_listen_port=$(jq -r '.inbounds[1].listen_port' /root/sbconfig_server.json)
-          
-          # Ask for listen port
-          read -p "Enter desired hysteria2 listen port (Current port is $hy_current_listen_port): " hy_listen_port
-          hy_listen_port=${hy_listen_port:-$hy_current_listen_port}
-
-          # Ask for hysteria server name (sni)
-          # hy_current_server_name=$(openssl x509 -noout -subject -in /root/self-cert/cert.pem | sed -n '/^subject/s/^.*CN=//p')
-          # read -p "Enter hysteria2 server name/SNI (Current value is $hy_current_server_name): " hy_server_name
-          # hy_server_name=${hy_server_name:-$hy_current_server_name}
-          # if [ "$hy_server_name" != "$hy_current_server_name" ]; then
-          #     mkdir -p /root/self-cert/ && openssl ecparam -genkey -name prime256v1 -out /root/self-cert/private.key && openssl req -new -x509 -days 36500 -key /root/self-cert/private.key -out /root/self-cert/cert.pem -subj "/CN=${hy_server_name}"
-          #     echo ""
-          # fi
-
-          # Modify reality.json with new settings
-          jq --arg listen_port "$listen_port" --arg server_name "$server_name" --arg hy_listen_port "$hy_listen_port" '.inbounds[1].listen_port = ($hy_listen_port | tonumber) | .inbounds[0].listen_port = ($listen_port | tonumber) | .inbounds[0].tls.server_name = $server_name | .inbounds[0].tls.reality.handshake.server = $server_name' /root/sbconfig_server.json > /root/sb_modified.json
-          mv /root/sb_modified.json /root/sbconfig_server.json
-          # jq --arg listen_port "$listen_port" --arg server_name "$server_name" --arg hy_server_name "$hy_server_name" --arg hy_listen_port "$hy_listen_port"  '.outbounds[2].tls.server_name = $hy_server_name | .outbounds[2].listen_port = ($hy_listen_port | tonumber) | .outbounds[1].listen_port = ($listen_port | tonumber) | .outbounds[1].tls.server_name = $server_name' /root/sbconfig_server.json > /root/sb_cli_modified.json
-          # mv /root/sb_cli_modified.json /root/sbconfig_client.json
-          jq --arg listen_port "$listen_port" --arg server_name "$server_name" --arg hy_listen_port "$hy_listen_port"  '.outbounds[2].listen_port = ($hy_listen_port | tonumber) | .outbounds[1].listen_port = ($listen_port | tonumber) | .outbounds[1].tls.server_name = $server_name' /root/sbconfig_server.json > /root/sb_cli_modified.json
-          mv /root/sb_cli_modified.json /root/sbconfig_client.json
-          # Restart sing-box service
-          systemctl restart sing-box
-          # show client configuration
-          show_client_configuration
-          exit 0
-        ;;
-      3)  
-          # show client configuration
-          show_client_configuration
-          exit 0
-      ;;	
-      4)
-          echo "Uninstalling..."
-          # Stop and disable sing-box service
-          systemctl stop sing-box
-          systemctl disable sing-box > /dev/null 2>&1
-
-          # Remove files
-          rm /etc/systemd/system/sing-box.service
-          rm /root/sbconfig_server.json
-          rm /root/sing-box
-          rm /root/public.key.b64
-          rm /root/self-cert/private.key
-          rm /root/self-cert/cert.pem
-          rm /root/sbconfig_client.json
-          echo "DONE!"
-          exit 0
-          ;;
-      5)
-          show_notice "Update Sing-box..."
-          # Uninstall previous installation
-          # systemctl stop sing-box
-          # systemctl disable sing-box > /dev/null 2>&1
-          # rm /root/sing-box
-          download_sing_box
-          # Check configuration and start the service
-          if /root/sing-box check -c /root/sbconfig_server.json; then
-              echo "Configuration checked successfully. Starting sing-box service..."
-              systemctl daemon-reload
-              systemctl enable sing-box > /dev/null 2>&1
-              systemctl start sing-box
-              systemctl restart sing-box
-          fi
-          echo ""  
-          exit 1
-          ;;
-      *)
-          echo "Invalid choice. Exiting."
-          exit 1
-          ;;
-	esac
-	fi
-
-download_sing_box
-
-# reality
-echo "Start configuring Reality config..."
-echo ""
-# Generate key pair
-echo "Generating key pair..."
-key_pair=$(/root/sing-box generate reality-keypair)
-echo "Key pair generation complete."
-echo ""
-
-# Extract private key and public key
-private_key=$(echo "$key_pair" | awk '/PrivateKey/ {print $2}' | tr -d '"')
-public_key=$(echo "$key_pair" | awk '/PublicKey/ {print $2}' | tr -d '"')
-
-# Save the public key in a file using base64 encoding
-echo "$public_key" | base64 > /root/public.key.b64
-
-# Generate necessary values
-uuid=$(/root/sing-box generate uuid)
-short_id=$(/root/sing-box generate rand --hex 8)
-
-# Ask for listen port
-read -p "Enter Reality desired listen port (default: 443): " listen_port
-listen_port=${listen_port:-443}
-echo ""
-# Ask for server name (sni)
-read -p "Enter server name/SNI (default: itunes.apple.com): " server_name
-server_name=${server_name:-itunes.apple.com}
-echo ""
-# hysteria2
-echo "Start configuring Hysteria2 config..."
-echo ""
-# Generate hysteria necessary values
-hy_password=$(/root/sing-box generate rand --hex 8)
-
-# Ask for listen port
-read -p "Enter desired hysteria2 listen port (default: 8443): " hy_listen_port
-hy_listen_port=${hy_listen_port:-8443}
-echo ""
-
-# Ask for self-signed certificate domain
-read -p "Enter the domain name for a self-signed certificate (default: bing.com): " hy_server_name
-hy_server_name=${hy_server_name:-bing.com}
-mkdir -p /root/self-cert/ && openssl ecparam -genkey -name prime256v1 -out /root/self-cert/private.key && openssl req -new -x509 -days 36500 -key /root/self-cert/private.key -out /root/self-cert/cert.pem -subj "/CN=${hy_server_name}"
-echo "self-signed certificate generated"
-
-# Retrieve the server IP address
-server_ip=$(curl -s https://api.ipify.org)
-
-# Create reality.json using jq
-jq -n --arg listen_port "$listen_port" --arg server_name "$server_name" --arg private_key "$private_key" --arg short_id "$short_id" --arg uuid "$uuid" --arg hy_listen_port "$hy_listen_port" --arg hy_password "$hy_password" --arg server_ip "$server_ip" '{
-  "log": {
-    "disabled": false,
-    "level": "info",
-    "timestamp": true
-  },
-  "inbounds": [
-    {
-      "type": "vless",
-      "tag": "vless-in",
-      "listen": "::",
-      "listen_port": ($listen_port | tonumber),
-      "sniff": true,
-      "sniff_override_destination": true,
-      "domain_strategy": "ipv4_only",
-      "users": [
-        {
-          "uuid": $uuid,
-          "flow": "xtls-rprx-vision"
-        }
-      ],
-      "tls": {
-        "enabled": true,
-        "server_name": $server_name,
-          "reality": {
-          "enabled": true,
-          "handshake": {
-            "server": $server_name,
-            "server_port": 443
-          },
-          "private_key": $private_key,
-          "short_id": [$short_id]
-        }
-      }
-    },
-    {
-        "type": "hysteria2",
-        "tag": "hy2-in",
-        "listen": "::",
-        "listen_port": ($hy_listen_port | tonumber),
-        "users": [
+show_notice "sing-box客户端配置参数"
+cat << EOF
+{
+    "dns": {
+        "servers": [
             {
-                "password": $hy_password
+                "tag": "remote",
+                "address": "https://1.1.1.1/dns-query",
+                "detour": "select"
+            },
+            {
+                "tag": "local",
+                "address": "https://223.5.5.5/dns-query",
+                "detour": "direct"
+            },
+            {
+                "address": "rcode://success",
+                "tag": "block"
             }
         ],
-        "tls": {
-            "enabled": true,
-            "alpn": [
-                "h3"
-            ],
-            "certificate_path": "/root/self-cert/cert.pem",
-            "key_path": "/root/self-cert/private.key"
-        }
-    }
-  ],
-  "outbounds": [
-    {
-      "type": "direct",
-      "tag": "direct"
-    },
-    {
-      "type": "block",
-      "tag": "block"
-    }
-  ]
-}' > /root/sbconfig_server.json
-
-
-# Create reality.json using jq
-jq -n --arg listen_port "$listen_port" --arg server_name "$server_name" --arg public_key "$public_key" --arg short_id "$short_id" --arg uuid "$uuid" --arg hy_listen_port "$hy_listen_port" --arg hy_password "$hy_password" --arg hy_server_name "$hy_server_name" --arg server_ip "$server_ip" '{
-  "dns": {
-    "rules": [
-      {
-        "clash_mode": "global",
-        "server": "remote"
-      },
-      {
-        "clash_mode": "direct",
-        "server": "local"
-      },
-      {
-        "outbound": [
-          "any"
+        "rules": [
+            {
+                "outbound": [
+                    "any"
+                ],
+                "server": "local"
+            },
+            {
+                "disable_cache": true,
+                "geosite": [
+                    "category-ads-all"
+                ],
+                "server": "block"
+            },
+            {
+                "clash_mode": "global",
+                "server": "remote"
+            },
+            {
+                "clash_mode": "direct",
+                "server": "local"
+            },
+            {
+                "geosite": "cn",
+                "server": "local"
+            }
         ],
-        "server": "local"
-      },
-      {
-        "geosite": "cn",
-        "server": "local"
-      }
+        "strategy": "prefer_ipv4"
+    },
+    "inbounds": [
+        {
+            "type": "tun",
+            "inet4_address": "172.19.0.1/30",
+            "inet6_address": "2001:0470:f9da:fdfa::1/64",
+            "sniff": true,
+            "sniff_override_destination": true,
+            "domain_strategy": "prefer_ipv4",
+            "stack": "mixed",
+            "strict_route": true,
+            "mtu": 9000,
+            "endpoint_independent_nat": true,
+            "auto_route": true
+        },
+        {
+            "type": "socks",
+            "tag": "socks-in",
+            "listen": "127.0.0.1",
+            "sniff": true,
+            "sniff_override_destination": true,
+            "domain_strategy": "prefer_ipv4",
+            "listen_port": 2333,
+            "users": []
+        },
+        {
+            "type": "mixed",
+            "tag": "mixed-in",
+            "sniff": true,
+            "sniff_override_destination": true,
+            "domain_strategy": "prefer_ipv4",
+            "listen": "127.0.0.1",
+            "listen_port": 2334,
+            "users": []
+        }
     ],
-    "servers": [
-      {
-        "address": "https://1.1.1.1/dns-query",
-        "detour": "select",
-        "tag": "remote"
-      },
-      {
-        "address": "https://223.5.5.5/dns-query",
-        "detour": "direct",
-        "tag": "local"
-      }
-    ],
-    "strategy": "ipv4_only"
-  },
   "experimental": {
     "clash_api": {
       "external_controller": "127.0.0.1:9090",
@@ -537,39 +400,6 @@ jq -n --arg listen_port "$listen_port" --arg server_name "$server_name" --arg pu
       "store_selected": true
     }
   },
-  "inbounds": [
-    {
-      "auto_route": true,
-      "domain_strategy": "ipv4_only",
-      "endpoint_independent_nat": true,
-      "inet4_address": "172.19.0.1/30",
-      "mtu": 9000,
-      "sniff": true,
-      "sniff_override_destination": true,
-      "strict_route": true,
-      "type": "tun"
-    },
-    {
-      "domain_strategy": "ipv4_only",
-      "listen": "127.0.0.1",
-      "listen_port": 2333,
-      "sniff": true,
-      "sniff_override_destination": true,
-      "tag": "socks-in",
-      "type": "socks",
-      "users": []
-    },
-    {
-      "domain_strategy": "ipv4_only",
-      "listen": "127.0.0.1",
-      "listen_port": 2334,
-      "sniff": true,
-      "sniff_override_destination": true,
-      "tag": "mixed-in",
-      "type": "mixed",
-      "users": []
-    }
-  ],
   "log": {
     "disabled": false,
     "level": "info",
@@ -589,37 +419,37 @@ jq -n --arg listen_port "$listen_port" --arg server_name "$server_name" --arg pu
     {
       "type": "vless",
       "tag": "sing-box-reality",
-      "uuid": $uuid,
+      "uuid": "$reality_uuid",
       "flow": "xtls-rprx-vision",
       "packet_encoding": "xudp",
-      "server": $server_ip,
-      "server_port": ($listen_port | tonumber),
+      "server": "$server_ip",
+      "server_port": $reality_port,
       "tls": {
         "enabled": true,
-        "server_name": $server_name,
+        "server_name": "$reality_server_name",
         "utls": {
           "enabled": true,
           "fingerprint": "chrome"
         },
         "reality": {
           "enabled": true,
-          "public_key": $public_key,
-          "short_id": $short_id,
+          "public_key": "$public_key",
+          "short_id": "$short_id"
         }
       }
     },
     {
             "type": "hysteria2",
-            "server": $server_ip,
-            "server_port": ($hy_listen_port | tonumber),
+            "server": "$server_ip",
+            "server_port": $hy_port,
             "tag": "sing-box-hysteria2",
             
-            "up_mbps": 30,
-            "down_mbps": 150,
-            "password": $hy_password,
+            "up_mbps": 100,
+            "down_mbps": 100,
+            "password": "$hy_password",
             "tls": {
                 "enabled": true,
-                "server_name": $hy_server_name,
+                "server_name": "$hy_server_name",
                 "insecure": true,
                 "alpn": [
                     "h3"
@@ -689,7 +519,325 @@ jq -n --arg listen_port "$listen_port" --arg server_name "$server_name" --arg pu
             "download_detour": "select"
         }
   }
-}' > /root/sbconfig_client.json
+}
+EOF
+
+}
+
+#enable bbr
+enable_bbr() {
+    # temporary workaround for installing bbr
+    bash <(curl -L -s https://raw.githubusercontent.com/teddysun/across/master/bbr.sh)
+    echo ""
+}
+#修改sb
+modify_singbox() {
+    #modifying reality configuration
+    show_notice "开始修改reality端口号和域名"
+    reality_current_port=$(grep -o "REALITY_PORT='[^']*'" /root/sbox/config | awk -F"'" '{print $2}')
+    while true; do
+        read -p "请输入想要修改的端口号 (当前端口号为 $reality_current_port): " reality_port
+        reality_port=${reality_port:-$reality_current_port}
+        if [ "$reality_port" -eq "$reality_current_port" ]; then
+            break
+        fi
+        if ss -tuln | grep -q ":$reality_port\b"; then
+            echo "端口 $reality_port 已经被占用，请选择其他端口。"
+        else
+            break
+        fi
+    done
+    reality_current_server_name=$(grep -o "REALITY_SERVER_NAME='[^']*'" /root/sbox/config | awk -F"'" '{print $2}')
+    read -p "请输入想要偷取的域名 (当前域名为 $reality_current_server_name): " reality_server_name
+    reality_server_name=${reality_server_name:-$reality_current_server_name}
+    echo ""
+    # modifying hysteria2 configuration
+    show_notice "开始修改hysteria2端口号"
+    echo ""
+    hy_current_port=$(grep -o "HY_PORT='[^']*'" /root/sbox/config | awk -F"'" '{print $2}')
+    while true; do
+        read -p "请输入想要修改的端口号 (当前端口号为 $hy_current_port): " hy_port
+        hy_port=${hy_port:-$hy_current_port}
+        if [ "$hy_port" -eq "$hy_current_port" ]; then
+            break
+        fi
+        if ss -tuln | grep -q ":$hy_port\b"; then
+            echo "端口 $hy_port 已经被占用，请选择其他端口。"
+        else
+            break
+        fi
+    done
+
+    # 修改sing-box
+    sed -i -e "/\"listen_port\":/{N; s/\"[0-9]*\"/\"$hy_port\"/}" \
+          -e "/\"listen_port\":/{N; s/\"[0-9]*\"/\"$reality_port\"/}" \
+          -e "/\"tls\": {/,/\"server\":/{ /\"server_name\":/{N; s/\"server_name\": \".*\"/\"server_name\": \"$reality_server_name\"/ }}"
+
+    #修改config
+    sed -i "s/REALITY_PORT='[^']*'/REALITY_PORT='$reality_port'/" /root/sbox/config
+    sed -i "s/REALITY_SERVER_NAME='[^']*'/REALITY_SERVER_NAME='$reality_server_name'/" /root/sbox/config
+    sed -i "s/HY_PORT='[^']*'/HY_PORT='$hy_port'/" /root/sbox/config
+
+    # Restart sing-box service
+    systemctl restart sing-box
+}
+
+uninstall_singbox() {
+    # Stop and disable services
+    systemctl stop sing-box 
+    systemctl disable sing-box  > /dev/null 2>&1
+
+    # Remove service files
+    rm -f /etc/systemd/system/sing-box.service
+
+    # Remove configuration and executable files
+    rm -f /root/sbox/sbconfig_server.json
+    rm -f /root/sbox/sing-box
+    rm -f /root/sbox/mianyang.sh
+    rm -f /usr/bin/mianyang
+    rm -f /root/sbox/self-cert/private.key
+    rm -f /root/sbox/self-cert/cert.pem
+    rm -f /root/sbox/config
+
+    # Remove directories
+    rm -rf /root/sbox/self-cert/
+    rm -rf /root/sbox/
+
+    echo "卸载完成"
+}
+
+install_base
+
+# Check if reality.json, sing-box, and sing-box.service already exist
+if [ -f "/root/sbox/sbconfig_server.json" ] && [ -f "/root/sbox/config" ] && [ -f "/root/sbox/mianyang.sh" ] && [ -f "/usr/bin/mianyang" ] && [ -f "/root/sbox/sing-box" ] && [ -f "/etc/systemd/system/sing-box.service" ]; then
+
+    echo "sing-box-reality-hysteria2已经安装"
+    echo ""
+    echo "请选择选项:"
+    echo ""
+    echo "1. 重新安装"
+    echo "2. 修改配置"
+    echo "3. 显示客户端配置"
+    echo "4. 卸载"
+    echo "5. 更新sing-box内核"
+    echo "6. 一键开启bbr"
+    echo "7. 重启sing-box"
+    echo ""
+    read -p "Enter your choice (1-8): " choice
+
+    case $choice in
+      1)
+          show_notice "开始卸载..."
+          # Uninstall previous installation
+          uninstall_singbox
+        ;;
+      2)
+          #修改sb
+          modify_singbox
+          # show client configuration
+          show_client_configuration
+          exit 0
+        ;;
+      3)  
+          # show client configuration
+          show_client_configuration
+          exit 0
+      ;;	
+      4)
+          uninstall_singbox
+          exit 0
+          ;;
+      5)
+          show_notice "更新 Sing-box..."
+          download_singbox
+          # Check configuration and start the service
+          if /root/sbox/sing-box check -c /root/sbox/sbconfig_server.json; then
+              echo "Configuration checked successfully. Starting sing-box service..."
+              systemctl restart sing-box
+          fi
+          echo ""  
+          exit 0
+          ;;
+      6)
+          enable_bbr
+          exit 0
+          ;;
+      7)
+          systemctl restart sing-box
+          echo "重启完成"
+	  exit 0
+          ;;
+      *)
+          echo "Invalid choice. Exiting."
+          exit 1
+          ;;
+	esac
+	fi
+
+mkdir -p "/root/sbox/"
+
+download_singbox
+
+# reality
+red "开始配置Reality"
+echo ""
+# Generate key pair
+echo "自动生成基本参数"
+echo ""
+key_pair=$(/root/sbox/sing-box generate reality-keypair)
+echo "Key pair生成完成"
+echo ""
+
+# Extract private key and public key
+private_key=$(echo "$key_pair" | awk '/PrivateKey/ {print $2}' | tr -d '"')
+public_key=$(echo "$key_pair" | awk '/PublicKey/ {print $2}' | tr -d '"')
+
+# Generate necessary values
+reality_uuid=$(/root/sbox/sing-box generate uuid)
+short_id=$(/root/sbox/sing-box generate rand --hex 8)
+echo "uuid和短id 生成完成"
+echo ""
+# Ask for listen port
+while true; do
+    read -p "请输入Reality端口号 (default: 443): " reality_port
+    reality_port=${reality_port:-443}
+
+    # 检测端口是否被占用
+    if ss -tuln | grep -q ":$reality_port\b"; then
+        echo "端口 $reality_port 已经被占用，请重新输入。"
+    else
+        break
+    fi
+done
+echo ""
+# Ask for server name (sni)
+read -p "请输入想要偷取的域名,需要支持tls1.3 (default: itunes.apple.com): " reality_server_name
+reality_server_name=${reality_server_name:-itunes.apple.com}
+echo ""
+
+# hysteria2
+green "开始配置hysteria2"
+echo ""
+# Generate hysteria necessary values
+hy_password=$(/root/sbox/sing-box generate rand --hex 8)
+echo "自动生成了8位随机密码"
+echo ""
+# Ask for listen port
+while true; do
+    read -p "请输入hysteria2监听端口 (default: 8443): " hy_port
+    hy_port=${hy_port:-8443}
+
+    # 检测端口是否被占用
+    if ss -tuln | grep -q ":$hy_port\b"; then
+        echo "端口 $hy_port 已经被占用，请选择其他端口。"
+    else
+        break
+    fi
+done
+echo ""
+
+# Ask for self-signed certificate domain
+read -p "输入自签证书域名 (default: bing.com): " hy_server_name
+hy_server_name=${hy_server_name:-bing.com}
+mkdir -p /root/sbox/self-cert/ && openssl ecparam -genkey -name prime256v1 -out /root/sbox/self-cert/private.key && openssl req -new -x509 -days 36500 -key /root/sbox/self-cert/private.key -out /root/sbox/self-cert/cert.pem -subj "/CN=${hy_server_name}"
+echo ""
+echo "自签证书生成完成"
+echo ""
+
+
+#ip地址
+server_ip=$(curl -s4m8 ip.sb -k) || server_ip=$(curl -s6m8 ip.sb -k)
+
+#config配置文件
+cat > /root/sbox/config <<EOF
+
+# VPS ip
+SERVER_IP='$server_ip'
+# Singbox
+# Reality
+PRIVATE_KEY='$private_key'
+PUBLIC_KEY='$public_key'
+SHORT_ID='$short_id'
+REALITY_UUID='$reality_uuid'
+REALITY_PORT='$reality_port'
+REALITY_SERVER_NAME='$reality_server_name'
+# Hy2
+HY_PORT='$hy_port'
+HY_SERVER_NAME='$hy_server_name'
+HY_PASSWORD='$hy_password'
+
+EOF
+
+
+# sbox配置文件
+cat > /root/sbox/sbconfig_server.json << EOF
+{
+  "log": {
+    "disabled": false,
+    "level": "info",
+    "timestamp": true
+  },
+  "inbounds": [
+    {
+      "type": "vless",
+      "tag": "vless-in",
+      "listen": "::",
+      "listen_port": $reality_port,
+      "users": [
+        {
+          "uuid": "$reality_uuid",
+          "flow": "xtls-rprx-vision"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "$reality_server_name",
+        "reality": {
+          "enabled": true,
+          "handshake": {
+            "server": "$reality_server_name",
+            "server_port": 443
+          },
+          "private_key": "$private_key",
+          "short_id": ["$short_id"]
+        }
+      }
+    },
+    {
+        "type": "hysteria2",
+        "tag": "hy2-in",
+        "listen": "::",
+        "listen_port": $hy_port,
+        "users": [
+            {
+                "password": "$hy_password"
+            }
+        ],
+        "tls": {
+            "enabled": true,
+            "alpn": [
+                "h3"
+            ],
+            "certificate_path": "/root/sbox/self-cert/cert.pem",
+            "key_path": "/root/sbox/self-cert/private.key"
+        }
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "block",
+      "tag": "block"
+    }
+  ]
+}
+EOF
+
+
+
 
 
 # Create sing-box.service
@@ -702,7 +850,7 @@ User=root
 WorkingDirectory=/root
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW
-ExecStart=/root/sing-box run -c /root/sbconfig_server.json
+ExecStart=/root/sbox/sing-box run -c /root/sbox/sbconfig_server.json
 ExecReload=/bin/kill -HUP \$MAINPID
 Restart=on-failure
 RestartSec=10
@@ -714,13 +862,13 @@ EOF
 
 
 # Check configuration and start the service
-if /root/sing-box check -c /root/sbconfig_server.json; then
+if /root/sbox/sing-box check -c /root/sbox/sbconfig_server.json; then
     echo "Configuration checked successfully. Starting sing-box service..."
     systemctl daemon-reload
     systemctl enable sing-box > /dev/null 2>&1
     systemctl start sing-box
     systemctl restart sing-box
-
+    create_shortcut
     show_client_configuration
 
 
