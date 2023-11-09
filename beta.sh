@@ -770,12 +770,7 @@ if [ -f "/root/sbox/sbconfig_server.json" ] && [ -f "/root/sbox/config" ] && [ -
           # show client configuration
           show_client_configuration
           exit 0
-      ;;	
-      4)  
-          # show client configuration
-          update_script
-          exit 0
-      ;;	
+      ;;		
       8)
           uninstall_singbox
           exit 0
