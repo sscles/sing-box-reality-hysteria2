@@ -178,106 +178,114 @@ EOF
 show_notice "sing-box客户端配置参数"
 cat << EOF
 {
-    "dns": {
-        "servers": [
-            {
-                "tag": "remote",
-                "address": "https://1.1.1.1/dns-query",
-                "detour": "select"
-            },
-            {
-                "tag": "local",
-                "address": "https://223.5.5.5/dns-query",
-                "detour": "direct"
-            },
-            {
-                "address": "rcode://success",
-                "tag": "block"
-            }
-        ],
-        "rules": [
-            {
-                "outbound": [
-                    "any"
-                ],
-                "server": "local"
-            },
-            {
-                "disable_cache": true,
-                "geosite": [
-                    "category-ads-all"
-                ],
-                "server": "block"
-            },
-            {
-                "clash_mode": "global",
-                "server": "remote"
-            },
-            {
-                "clash_mode": "direct",
-                "server": "local"
-            },
-            {
-                "geosite": "cn",
-                "server": "local"
-            }
-        ],
-        "strategy": "prefer_ipv4"
-    },
-    "inbounds": [
-        {
-            "type": "tun",
-            "inet4_address": "172.19.0.1/30",
-            "inet6_address": "2001:0470:f9da:fdfa::1/64",
-            "sniff": true,
-            "sniff_override_destination": true,
-            "domain_strategy": "prefer_ipv4",
-            "stack": "mixed",
-            "strict_route": true,
-            "mtu": 9000,
-            "endpoint_independent_nat": true,
-            "auto_route": true
-        },
-        {
-            "type": "socks",
-            "tag": "socks-in",
-            "listen": "127.0.0.1",
-            "sniff": true,
-            "sniff_override_destination": true,
-            "domain_strategy": "prefer_ipv4",
-            "listen_port": 2333,
-            "users": []
-        },
-        {
-            "type": "mixed",
-            "tag": "mixed-in",
-            "sniff": true,
-            "sniff_override_destination": true,
-            "domain_strategy": "prefer_ipv4",
-            "listen": "127.0.0.1",
-            "listen_port": 2334,
-            "users": []
-        }
-    ],
-  "experimental": {
-    "clash_api": {
-      "external_controller": "127.0.0.1:9090",
-      "secret": "",
-      "store_selected": true
-    }
-  },
   "log": {
-    "disabled": false,
-    "level": "info",
+    "level": "debug",
     "timestamp": true
   },
+  "dns": {
+    "servers": [
+      {
+        "tag": "proxyDns",
+        "address": "8.8.8.8",
+        "detour": "proxy"
+      },
+      {
+        "tag": "localDns",
+        "address": "https://223.5.5.5/dns-query",
+        "detour": "direct"
+      },
+      {
+        "tag": "block",
+        "address": "rcode://success"
+      },
+      {
+        "tag": "remote",
+        "address": "fakeip"
+      }
+    ],
+    "rules": [
+      {
+        "domain": [
+          "ghproxy.com",
+          "cdn.jsdelivr.net",
+          "testingcf.jsdelivr.net"
+        ],
+        "server": "localDns"
+      },
+      {
+        "geosite": "category-ads-all",
+        "server": "block"
+      },
+      {
+        "outbound": "any",
+        "server": "localDns",
+        "disable_cache": true
+      },
+      {
+        "geosite": "cn",
+        "server": "localDns"
+      },
+      {
+        "clash_mode": "direct",
+        "server": "localDns"
+      },
+      {
+        "clash_mode": "global",
+        "server": "proxyDns"
+      },
+      {
+        "geosite": "geolocation-!cn",
+        "server": "proxyDns"
+      },
+      {
+        "query_type": [
+          "A",
+          "AAAA"
+        ],
+        "server": "remote"
+      }
+    ],
+    "fakeip": {
+      "enabled": true,
+      "inet4_range": "198.18.0.0/15",
+      "inet6_range": "fc00::/18"
+    },
+    "independent_cache": true,
+    "strategy": "ipv4_only"
+  },
+  "inbounds": [
+    {
+      "type": "tun",
+      "inet4_address": "172.19.0.1/30",
+      "mtu": 9000,
+      "auto_route": true,
+      "strict_route": true,
+      "sniff": true,
+      "endpoint_independent_nat": false,
+      "stack": "system",
+      "platform": {
+        "http_proxy": {
+          "enabled": true,
+          "server": "127.0.0.1",
+          "server_port": 2080
+        }
+      }
+    },
+    {
+      "type": "mixed",
+      "listen": "127.0.0.1",
+      "listen_port": 2080,
+      "sniff": true,
+      "users": []
+    }
+  ],
   "outbounds": [
     {
-      "tag": "select",
+      "tag": "proxy",
       "type": "selector",
-      "default": "urltest",
       "outbounds": [
-        "urltest",
+        "auto",
+        "direct",
         "sing-box-reality-grpc"
       ]
     },
@@ -319,23 +327,40 @@ cat << EOF
       "type": "dns"
     },
     {
-      "tag": "urltest",
+      "tag": "auto",
       "type": "urltest",
       "outbounds": [
         "sing-box-reality-grpc"
-      ]
+      ],
+      "url": "http://www.gstatic.com/generate_204",
+      "interval": "1m",
+      "tolerance": 50
     }
   ],
   "route": {
     "auto_detect_interface": true,
+    "final": "proxy",
+    "geoip": {
+      "download_url": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.db",
+      "download_detour": "direct"
+    },
+    "geosite": {
+      "download_url": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.db",
+      "download_detour": "direct"
+    },
     "rules": [
       {
-        "geosite": "category-ads-all",
+        "protocol": "dns",
+        "outbound": "dns-out"
+      },
+      {
+        "network": "udp",
+        "port": 443,
         "outbound": "block"
       },
       {
-        "outbound": "dns-out",
-        "protocol": "dns"
+        "geosite": "category-ads-all",
+        "outbound": "block"
       },
       {
         "clash_mode": "direct",
@@ -343,30 +368,46 @@ cat << EOF
       },
       {
         "clash_mode": "global",
-        "outbound": "select"
+        "outbound": "proxy"
       },
       {
-        "geoip": [
-          "cn",
-          "private"
+        "domain": [
+          "clash.razord.top",
+          "yacd.metacubex.one",
+          "yacd.haishan.me",
+          "d.metacubex.one"
         ],
         "outbound": "direct"
       },
       {
         "geosite": "geolocation-!cn",
-        "outbound": "select"
+        "outbound": "proxy"
+      },
+      {
+        "geoip": [
+          "private",
+          "cn"
+        ],
+        "outbound": "direct"
       },
       {
         "geosite": "cn",
         "outbound": "direct"
       }
-    ],
-    "geoip": {
-            "download_detour": "select"
-        },
-    "geosite": {
-            "download_detour": "select"
-        }
+    ]
+  },
+  "experimental": {
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090",
+      "external_ui_download_url": "",
+      "external_ui_download_detour": "",
+      "external_ui": "ui",
+      "secret": "",
+      "default_mode": "rule",
+      "store_selected": true,
+      "cache_file": "",
+      "cache_id": ""
+    }
   }
 }
 EOF
